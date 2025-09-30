@@ -17,8 +17,10 @@
 
 //-----Func Definitions-----
 int readFile(char filePath[], int array[]);
+
 //-----End Definitions-----
 
+//Thread structure
 typedef struct _thread_data_t {
   const int *data;
   int startInd;
@@ -59,11 +61,10 @@ int main(int argc, char* argv[])
   long long int totalSum = 0;
 
   //Initialize timer
-  struct timeval {
-    time_t tv_sec; //seconds
-    suseconds tv_usec; //microseconds
-  };
-  int gettimeofday(&startTime, NULL);
+  //time_t tv_sec - seconds
+  //suseconds tv_usec - microseconds
+  struct timeval startTime, endTime;
+  gettimeofday(&startTime, NULL);
 
   //Initialize pthread_mutex_t variable used by created threads to implement required locking
   int pthread_mutex_destroy(pthread_mutex_t *mutex);
@@ -83,21 +84,21 @@ int main(int argc, char* argv[])
   return 0;
 }
 
-void* arraySum
+void* arraySum(void* threadData)
 {
   long long int threadSum;
-  /*
-  It is assumed to operate on thread_data_t* input data (but since the input type is void* to
-  adhere by the pthread API, you have to typecast the input pointer into the appropriate pointer
-  type to reinterpret the data).
-  It should sum the thread_data_t-&gt;data array from thread_data_t-&gt;startIndex to
-  thread_data_t-&gt;endIndex (only a slice of the original array), into a locally defined long
-  long int threadSum variable.
-  Once it is done, it should update with its local sum the value stored in thread_data_t-
-  &gt;totalSum.
-  */
+  thread_data_t* tData = (thread_data_t*)threadData; //Reinterpret the data to adhere by the pthread API
 
-  return (void*)
+  for (int i = tData->startInd; i < tData->endInd; i++) //Get local sum from the "chunk" of data from the Thread
+  {
+    threadSum += tData->data[i];
+  }
+
+  //Add local sum to the total sum
+  pthread_mutex_lock(tData->lock);
+  *(tData->totalSum) += threadSum;
+  pthread_mutex_unlock(tData->lock);
+  pthread_exit(NULL);
 }
 
 int readFile(char filePath[], int array[])
