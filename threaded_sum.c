@@ -14,3 +14,13 @@
 #include <pthread.h>
 #include <sys/time.h>
 //-----End Includes-----
+
+int main(int argc, char* argv[])
+{
+  if (argc < 3 || argc > 3) //Not the correct number of cl args
+  {
+    printf ("The incorrect number of arguments were provided, expected 3 but %d were given.\n", argc);
+    return -1;
+  }
+  return 0;
+}
