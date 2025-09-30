@@ -17,7 +17,7 @@
 
 //-----Func Definitions-----
 int readFile(char filePath[], int array[]);
-
+void* arraySum(void* threadData);
 //-----End Definitions-----
 
 //Thread structure
@@ -39,12 +39,12 @@ int main(int argc, char* argv[])
   
   //Read File and return the number of values parsed
   char* fPath = argv[1];
-  int arraySize = 100000000;
-  int* numArray = (int*)malloc(arraySize * sizeof(int));
+  const int MAX_INPUT_SIZE = 100000000;
+  int* numArray = (int*)malloc(MAX_INPUT_SIZE * sizeof(int));
   
   if (numArray == NULL)
   {
-    printf("The memory allocation did not succeed!");
+    printf("The memory allocation for numArray did not succeed!");
     return -1;
   }
   
@@ -67,26 +67,68 @@ int main(int argc, char* argv[])
   gettimeofday(&startTime, NULL);
 
   //Initialize pthread_mutex_t variable used by created threads to implement required locking
-  int pthread_mutex_destroy(pthread_mutex_t *mutex);
-  int pthread_mutex_init(pthread_mutex_t *restrict mutex, const pthread_mutexattr_t *restrict attr);
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  
+  //Dynamically Allocate thread objects as large as threadsReq
+  pthread_t* threads = malloc(sizeof(pthread_t) * threadsReq);
+  thread_data_t* mThread = malloc(sizeof(thread_data_t) * threadsReq);
 
-  //Construct array of thread_data_t objects as large as threadsReq
+  if (threads == NULL || mThread == NULL)
+  {
+    printf("The memory allocation for threads did not succeed!");
+    free(numArray);
+    return -1;
+  }
+
+  //Seperate work for threads
+  int threadsSplit = numParsed / threadsReq;
+  int threadsRemaining = numParsed % threadsReq;
+  int currentThreadInd = 0;
+  
   for (int i = 0; i < threadsReq; i++)
   {
     //Loop through the array of thread_data_t and set the pointer to the data array containing the prev. read values
     //The startIndex and endIndex of the slice of the array for the Thread to process (i.e. to sum through)
     //Lock to point to the prev. created pthread_mutex_t
     //pthread_create and pass in the corresponding pthread_t object in the array, the routine to invoke arraysum, and the corresponding thread_data_t object
+    
+    int extra = (i < threadsRemaining) ? 1 : 0;
+    int endThreadInd = currentThreadInd + threadsSplit + extra;
+    
+    mThread[i].data = numArray;
+    mThread[i].startInd = currentThreadInd;
+    mThread[i].endInd = endThreadInd;
+    mThread[i].lock = &mutex;
+    mThread[i].totalSum = &totalSum;
+    currentThreadInd = endThreadInd;
+
+    pthread_create(&threads[i], NULL, arraySum, &mThread[i]);
   }
 
+  //Allow threads to complete
+  for (int i = 0; i < threadsReq; i++)
+  {
+    pthread_join(threads[i], NULL);
+  }
+  //Get end time
+  gettimeofday(&endTime, NULL);
+  long long timeSpentInMilliSeconds = (endTime.tv_sec - startTime.tv_sec) * 1000LL + (endTime.tv_usec - startTime.tv_usec) / 1000;
+
+  printf("Total sum is: %lld\n", totalSum);
+  printf("Time elapsed was %lld milliseconds\n", timeSpentInMilliSeconds);
+
+  //Memory cleanup
   free(numArray);
+  free(threads);
+  free(mThread);
+  pthread_mutex_destroy(&mutex);
+  
   return 0;
 }
 
 void* arraySum(void* threadData)
 {
-  long long int threadSum;
+  long long int threadSum = 0;
   thread_data_t* tData = (thread_data_t*)threadData; //Reinterpret the data to adhere by the pthread API
 
   for (int i = tData->startInd; i < tData->endInd; i++) //Get local sum from the "chunk" of data from the Thread
@@ -94,9 +136,9 @@ void* arraySum(void* threadData)
     threadSum += tData->data[i];
   }
 
-  //Add local sum to the total sum
-  pthread_mutex_lock(tData->lock);
-  *(tData->totalSum) += threadSum;
+  //Add local sum to the total sum ensuring thread saftey
+  pthread_mutex_lock(tData->lock); //Lock and unlock the Critical Section
+  *(tData->totalSum) += threadSum; //Update total sum in thread_data_t
   pthread_mutex_unlock(tData->lock);
   pthread_exit(NULL);
 }
