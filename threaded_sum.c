@@ -29,7 +29,7 @@ typedef struct _thread_data_t {
   long long int *totalSum;
 } thread_data_t;
 
-int main(int argc, char* argv[])
+int main(int argc, char* argv[]) //command: ./threaded_sum.c file_path number_of_threads
 {
   if (argc < 3 || argc > 3) //Not the correct number of cl args
   {
